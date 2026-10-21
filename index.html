@@ -1730,9 +1730,8 @@ function enterPortal(){
 }
 
 /* ============ login (protótipo — contas fixas, só para demonstração) ============ */
-/* LOGIN_COM_SENHA=false: acesso temporário só com botão, sem pedir e-mail/senha,
-   enquanto ajustamos as contas. Para voltar a exigir e-mail e senha, troque para true. */
-const LOGIN_COM_SENHA = false;
+/* LOGIN_COM_SENHA=true: exige e-mail e senha cadastrados para entrar. */
+const LOGIN_COM_SENHA = true;
 const ACCOUNTS = [
   { email:'leonardosilvatte@gmail.com', senha:'K@tiafestas3325', nome:'Leonardo' },
   { email:'victoriacavalari@outlook.com', senha:'K@tiafestas3325', nome:'Victoria' },
