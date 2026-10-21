@@ -232,7 +232,7 @@
   .login-pwtoggle{ position:absolute; right:10px; top:31px; border:none; background:none; color:var(--ink-faint); font-size:12px; font-weight:700; cursor:pointer; padding:4px; }
 </style>
 
-<div id="portal" class="portal" role="button" tabindex="0" aria-label="Entrar no sistema Kátia Festas">
+<div id="portal" class="portal hidden" role="button" tabindex="0" aria-label="Entrar no sistema Kátia Festas">
   <div class="portal-inner">
     <div class="portal-letter">K</div>
     <div class="portal-tagline"><b>Kátia Festas</b><span>Sistema · protótipo</span></div>
@@ -1818,4 +1818,7 @@ renderDashboard();
 renderNovo();
 renderAgenda();
 renderClientes();
+/* portal de boas-vindas desativado: a primeira tela agora é direto o login */
+portalOpened = true;
+if(!currentUser) mostrarLogin();
 </script>
