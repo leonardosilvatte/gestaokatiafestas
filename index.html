@@ -1471,18 +1471,26 @@ async function gerarPDF(id, btnEl){
     }
   }catch(e){ downloads = null; }
 
-  if(!downloads){
-    _abrirFallbackContrato(c, 'O download direto não está disponível neste ambiente. Use o texto abaixo com Ctrl+P / Cmd+P, ou copie os dados manualmente.');
-    return;
-  }
-
   const origLabel = btnEl ? btnEl.innerHTML : null;
   if(btnEl){ btnEl.disabled = true; btnEl.style.opacity = '0.6'; btnEl.innerHTML = '⏳ Gerando PDF...'; }
 
   try{
     const blob = await _montarPDFBlob(c);
     const filename = `Contrato-${_slugify(c.cliente)}-${(c.data||'').replace(/-/g,'')}.pdf`;
-    await downloads.save({ filename, data: blob });
+    if(downloads){
+      // dentro do ambiente do Claude (Artifact) — usa o recurso nativo de download
+      await downloads.save({ filename, data: blob });
+    } else {
+      // fora do Claude (ex.: site publicado na Vercel) — download padrão do navegador
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=> URL.revokeObjectURL(url), 2000);
+    }
   }catch(err){
     console.error('Erro ao gerar/baixar PDF do contrato:', err);
     if(!err || err.code !== 'declined'){
