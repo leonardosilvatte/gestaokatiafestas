@@ -1923,7 +1923,10 @@ async function tentarLogin(ev){
   const { data, error } = await sb.auth.signInWithPassword({ email, password: senha });
 
   if(error){
-    erroEl.textContent = 'E-mail ou senha incorretos.';
+    const semConexao = !error.status; // erro de rede/conexão (sem resposta do servidor) em vez de credencial recusada
+    erroEl.textContent = semConexao
+      ? 'Não foi possível conectar ao banco de dados a partir desta janela do Claude. Use o link do site (gestaokatiafestas.vercel.app) para entrar.'
+      : 'E-mail ou senha incorretos.';
     erroEl.hidden = false;
     if(btnEntrar){ btnEntrar.disabled = false; btnEntrar.textContent = origLabel; }
     return false;
