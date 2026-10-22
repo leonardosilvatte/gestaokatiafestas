@@ -681,6 +681,12 @@ function mapContractFromDB(row){
     obs: row.obs||'',
     pagamentos: (row.payments||[]).map(p=>({ id:p.id, data:p.data, valor:Number(p.valor)||0, nota:p.nota||'' }))
       .sort((a,b)=> (a.data||'').localeCompare(b.data||'')),
+    assinaturaStatus: row.assinatura_status || 'pendente',
+    autentiqueDocumentId: row.autentique_document_id || null,
+    autentiqueSignatureId: row.autentique_signature_id || null,
+    linkAssinatura: row.link_assinatura || null,
+    assinadoEm: row.assinado_em || null,
+    pdfAssinadoUrl: row.pdf_assinado_url || null,
   };
 }
 
@@ -820,7 +826,7 @@ function renderDashboard(){
       <div class="when num">${fmtData(c.data)}</div>
       ${tagHtml(c.unidade)}
       <div class="who">${c.cliente}</div>
-      <div class="meta">${pacoteLabelFor(c)} · aniversariante de ${c.aniversariante}${saldoDevedor(c)>0 ? ` · saldo ${fmtMoeda(saldoDevedor(c))}` : ' · quitado'}</div>
+      <div class="meta">${pacoteLabelFor(c)} · aniversariante de ${c.aniversariante}${saldoDevedor(c)>0 ? ` · saldo ${fmtMoeda(saldoDevedor(c))}` : ' · quitado'}${c.assinaturaStatus==='assinado' ? ' · ✓ contrato assinado' : c.assinaturaStatus==='enviado' ? ' · ✉ aguardando assinatura' : ''}</div>
       <div class="val num">${fmtMoeda(c.valorTotal)}</div>
       ${rowActions(c.id)}
     </div>`).join('') : `<div class="empty">Nenhuma festa futura cadastrada.</div>`;
@@ -1028,6 +1034,7 @@ function renderNovo(){
           <button class="btn" id="btnSalvar" onclick="saveContract()">${isEdit ? 'Salvar alterações' : 'Salvar contrato'}</button>
           <button class="btn ghost" onclick="${isEdit ? `verContratoExistente(${editingId})` : 'verContratoDraft()'}">Ver texto do contrato</button>
           ${isEdit ? `<button class="btn ghost" onclick="gerarPDF(${editingId}, this)">📄 Baixar PDF do contrato</button>` : ''}
+          ${isEdit ? assinaturaButtonNovoHTML(contracts.find(c=>c.id===editingId)) : ''}
           ${isEdit ? `<button class="btn danger" onclick="askDeleteContract(${editingId})">Excluir contrato</button>` : ''}
         </div>
         ${isEdit ? renderPaymentsPanel(contracts.find(c=>c.id===editingId)) : ''}
@@ -1615,20 +1622,108 @@ function resumoContratoHTML(c){
   ];
   if(c.obs) campos.push(campoResumo('Observações', c.obs.replace(/\n/g,'<br>'), true));
 
+  const st = c.assinaturaStatus || 'pendente';
+  const botaoAssinatura = st==='assinado'
+    ? `<button class="btn ghost" style="margin-top:0; width:auto; flex:1;" onclick="window.open('${c.pdfAssinadoUrl || c.linkAssinatura || '#'}','_blank')">📝 Ver documento assinado</button>`
+    : `<button class="btn ghost" style="margin-top:0; width:auto; flex:1;" onclick="enviarParaAssinatura(${c.id}, this)">📤 ${st==='enviado' ? 'Reenviar para assinatura' : 'Enviar para assinatura'}</button>`;
+
   return `<div style="white-space:normal;">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
       <div>
         <div style="font-size:18px; font-weight:800; font-family:'Plus Jakarta Sans',sans-serif; color:var(--ink);">${c.cliente}</div>
         <div style="margin-top:5px; display:flex; gap:7px; align-items:center; flex-wrap:wrap;">${tagHtml(c.unidade)}<span style="font-size:12.5px; color:var(--ink-soft);">${pacoteLabelFor(c)}</span></div>
       </div>
-      <span class="money-pill ${quitado?'paid':'due'}">${quitado ? 'Quitado' : 'Saldo ' + fmtMoeda(saldo)}</span>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+        <span class="money-pill ${quitado?'paid':'due'}">${quitado ? 'Quitado' : 'Saldo ' + fmtMoeda(saldo)}</span>
+        ${assinaturaBadgeHTML(c)}
+      </div>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:13px 16px; margin-bottom:18px;">${campos.join('')}</div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn ghost" style="margin-top:0; width:auto; flex:1;" onclick="closeModal(); editContract(${c.id})">✎ Editar contrato</button>
       <button class="btn" style="margin-top:0; width:auto; flex:1;" onclick="gerarPDF(${c.id}, this)">📄 Baixar PDF</button>
     </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+      ${botaoAssinatura}
+    </div>
   </div>`;
+}
+
+function assinaturaBadgeHTML(c){
+  const st = c.assinaturaStatus || 'pendente';
+  if(st==='assinado') return `<span class="money-pill paid">✓ Assinado</span>`;
+  if(st==='enviado') return `<span class="money-pill due">✉ Aguardando assinatura</span>`;
+  return '';
+}
+
+function assinaturaButtonNovoHTML(c){
+  if(!c) return '';
+  const st = c.assinaturaStatus || 'pendente';
+  if(st==='assinado'){
+    return `<div style="margin:0 0 10px;">${assinaturaBadgeHTML(c)}${c.assinadoEm ? `<span style="font-size:12px; color:var(--ink-soft); margin-left:6px;">em ${fmtData(c.assinadoEm.slice(0,10))}</span>` : ''}</div>
+      <button class="btn ghost" onclick="window.open('${c.pdfAssinadoUrl || c.linkAssinatura || '#'}','_blank')">📝 Ver documento assinado</button>`;
+  }
+  return `${st==='enviado' ? `<div style="margin:0 0 10px;">${assinaturaBadgeHTML(c)}</div>` : ''}<button class="btn ghost" onclick="enviarParaAssinatura(${c.id}, this)">📤 ${st==='enviado' ? 'Reenviar para assinatura' : 'Enviar para assinatura'}</button>`;
+}
+
+function refreshContractViews(id){
+  renderDashboard(); renderAgenda(); renderClientes();
+  if(document.getElementById('view-novo').classList.contains('active') && editingId===id) renderNovo();
+  const modalOpen = document.getElementById('modalBack').classList.contains('open');
+  const modalTitleEl = document.getElementById('modalTitle');
+  if(modalOpen && modalTitleEl && modalTitleEl.textContent==='Resumo do contrato'){
+    const c = contracts.find(x=>x.id===id);
+    if(c) document.getElementById('modalBody').innerHTML = resumoContratoHTML(c);
+  }
+}
+
+async function enviarParaAssinatura(id, btnEl){
+  const c = contracts.find(x=>x.id===id);
+  if(!c) return;
+  if(!c.tel || c.tel==='—'){
+    alert('Este contrato não tem telefone do cliente cadastrado. Edite o contrato e adicione o telefone antes de enviar para assinatura.');
+    return;
+  }
+
+  const origLabel = btnEl ? btnEl.innerHTML : null;
+  if(btnEl){ btnEl.disabled = true; btnEl.innerHTML = '⏳ Enviando...'; }
+
+  try{
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData && sessionData.session && sessionData.session.access_token;
+    if(!token) throw new Error('Sessão expirada. Saia e entre novamente.');
+
+    const blob = await _montarPDFBlob(c);
+    const filename = `Contrato-${_slugify(c.cliente)}-${(c.data||'').replace(/-/g,'')}.pdf`;
+
+    const fd = new FormData();
+    fd.append('contract_id', String(c.id));
+    fd.append('file', blob, filename);
+
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/enviar-para-assinatura`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    const result = await resp.json();
+    if(!resp.ok){ throw new Error(result.error || 'Falha ao enviar para assinatura.'); }
+
+    c.assinaturaStatus = 'enviado';
+    c.linkAssinatura = result.link;
+
+    const digits = (c.tel||'').replace(/\D/g,'');
+    const telWa = digits.startsWith('55') ? digits : `55${digits}`;
+    const msg = `Olá, ${c.cliente}! Segue o contrato da sua festa para você conferir e assinar online: ${result.link}`;
+    const waUrl = `https://wa.me/${telWa}?text=${encodeURIComponent(msg)}`;
+    window.open(waUrl, '_blank');
+
+    refreshContractViews(id);
+  }catch(err){
+    console.error('Erro ao enviar para assinatura:', err);
+    alert('Não foi possível enviar o contrato para assinatura. ' + (err && err.message ? err.message : 'Tente novamente.'));
+  } finally {
+    if(btnEl){ btnEl.disabled = false; btnEl.innerHTML = origLabel; }
+  }
 }
 
 function verResumoContrato(id){
