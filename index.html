@@ -822,11 +822,11 @@ function renderDashboard(){
 
   const upcomingAll = contracts.filter(c=>c.data>=todayKey).sort((a,b)=>a.data.localeCompare(b.data));
   const rows = upcomingAll.length ? upcomingAll.map(c=>`
-    <div class="row-item">
+    <div class="row-item" style="cursor:pointer" onclick="verResumoContrato(${c.id})">
       <div class="when num">${fmtData(c.data)}</div>
       ${tagHtml(c.unidade)}
       <div class="who">${c.cliente}</div>
-      <div class="meta">${pacoteLabelFor(c)} · aniversariante de ${c.aniversariante}${saldoDevedor(c)>0 ? ` · saldo ${fmtMoeda(saldoDevedor(c))}` : ' · quitado'}${c.assinaturaStatus==='assinado' ? ' · ✓ contrato assinado' : c.assinaturaStatus==='enviado' ? ' · ✉ aguardando assinatura' : ''}</div>
+      <div class="meta">${pacoteLabelFor(c)} · aniversariante de ${c.aniversariante}${saldoDevedor(c)>0 ? ` · saldo ${fmtMoeda(saldoDevedor(c))}` : ' · quitado'}${c.assinaturaStatus==='assinado' ? ' · ✓ contrato assinado' : ''}</div>
       <div class="val num">${fmtMoeda(c.valorTotal)}</div>
       ${rowActions(c.id)}
     </div>`).join('') : `<div class="empty">Nenhuma festa futura cadastrada.</div>`;
@@ -842,7 +842,7 @@ function renderDashboard(){
 
 /* ============ view: novo / editar contrato ============ */
 function blankForm(){ return { unidade:'vila', igapoPacote:'tradicional', conv:50, data:'', horaIni:'14:00', horaFim:'18:00',
-  cliente:'', cpf:'', tel:'', enderecoCliente:'', aniversariante:'', idade:'', tema:'', valorTotal:'', entrada:'', formaPagamento:'pix', obs:'' }; }
+  cliente:'', cpf:'', tel:'', enderecoCliente:'', aniversariante:'', idade:'', tema:'', valorTotal:'', entrada:'', formaPagamento:'pix', obs:'', pagamentosExtras:[] }; }
 let form = blankForm();
 let editingId = null;
 
@@ -854,7 +854,7 @@ function editContract(id){
   editingId = id;
   form = { unidade:c.unidade, igapoPacote:c.igapoPacote||'tradicional', conv:c.conv, data:c.data, horaIni:c.horaIni, horaFim:c.horaFim,
     cliente:c.cliente, cpf:c.cpf, tel:c.tel, enderecoCliente:c.enderecoCliente||'', aniversariante:c.aniversariante, idade:(c.idade==null?'':c.idade), tema:c.tema,
-    valorTotal:c.valorTotal, entrada:'', formaPagamento:c.formaPagamento, obs:c.obs||'' };
+    valorTotal:c.valorTotal, entrada:'', formaPagamento:c.formaPagamento, obs:c.obs||'', pagamentosExtras:[] };
   goTo('novo');
   renderNovo();
 }
@@ -1022,6 +1022,25 @@ function renderNovo(){
             </select>
           </div>
           <div class="field span2" id="previewEntrada" style="font-size:12px; color:var(--ink-soft); margin-top:-6px;"></div>
+          <div class="field span2">
+            <label>Outros pagamentos já recebidos (opcional)</label>
+            <div style="font-size:12px; color:var(--ink-soft); margin:-2px 0 8px;">Use isso para cadastrar contratos antigos que já tiveram mais de um pagamento (ex: entrada + uma parcela já paga).</div>
+            ${form.pagamentosExtras.length ? `<div class="row-list" style="margin-bottom:10px;">
+              ${form.pagamentosExtras.map((p,i)=>`
+                <div class="row-item">
+                  <div class="when num">${fmtData(p.data)}</div>
+                  <div class="meta">${p.nota||'Pagamento'}</div>
+                  <div class="val num">${fmtMoeda(p.valor)}</div>
+                  <button class="icon-btn danger" title="Remover" onclick="removePagamentoNovo(${i})">✕</button>
+                </div>`).join('')}
+            </div>` : ''}
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="novoPayDate" type="date" value="${todayISO()}" style="flex:1; min-width:130px; font-family:inherit; font-size:13px; padding:8px 9px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); color:var(--ink);">
+              <input id="novoPayValue" type="text" inputmode="numeric" placeholder="R$ 0,00" oninput="onMoneyInputStandalone(this)" style="flex:1; min-width:110px; font-family:inherit; font-size:13px; padding:8px 9px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); color:var(--ink);">
+              <input id="novoPayNota" type="text" placeholder="Observação (opcional)" style="flex:1; min-width:140px; font-family:inherit; font-size:13px; padding:8px 9px; border:1px solid var(--border); border-radius:8px; background:var(--surface-2); color:var(--ink);">
+              <button class="btn ghost" style="width:auto; margin:0;" onclick="addPagamentoNovo()">+ Adicionar pagamento</button>
+            </div>
+          </div>
           ` : ''}
 
           <div class="field span2"><label>Informações sobre a decoração</label><textarea oninput="formSet('obs', this.value, false)">${form.obs}</textarea></div>
@@ -1072,6 +1091,17 @@ function renderPaymentsPanel(c){
     </div>`;
 }
 
+function addPagamentoNovo(){
+  const dEl = document.getElementById('novoPayDate'), vEl = document.getElementById('novoPayValue'), nEl = document.getElementById('novoPayNota');
+  const valor = parseFloat(vEl.dataset.value);
+  if(!dEl.value || !(valor>0)) return;
+  form.pagamentosExtras.push({ data:dEl.value, valor, nota:(nEl.value||'').trim() || 'Pagamento' });
+  renderNovo();
+}
+function removePagamentoNovo(idx){
+  form.pagamentosExtras.splice(idx,1);
+  renderNovo();
+}
 async function addPagamento(id){
   const c = contracts.find(x=>x.id===id);
   const dEl = document.getElementById('payDate'), vEl = document.getElementById('payValue');
@@ -1129,8 +1159,11 @@ async function saveContract(){
     const entrada = parseFloat(form.entrada)||0;
     const { data: inserido, error: errIns } = await sb.from('contracts').insert(payload).select().single();
     if(errIns) throw errIns;
-    if(entrada>0){
-      const { error: errPag } = await sb.from('payments').insert({ contract_id:inserido.id, data:todayISO(), valor:entrada, nota:'Entrada' });
+    const pagamentosParaInserir = [];
+    if(entrada>0) pagamentosParaInserir.push({ contract_id:inserido.id, data:todayISO(), valor:entrada, nota:'Entrada' });
+    (form.pagamentosExtras||[]).forEach(p=> pagamentosParaInserir.push({ contract_id:inserido.id, data:p.data, valor:p.valor, nota:p.nota||'Pagamento' }));
+    if(pagamentosParaInserir.length>0){
+      const { error: errPag } = await sb.from('payments').insert(pagamentosParaInserir);
       if(errPag) throw errPag;
     }
     const { data: completo, error: errSel } = await sb.from('contracts').select('*, payments(*)').eq('id', inserido.id).single();
@@ -1625,7 +1658,7 @@ function resumoContratoHTML(c){
   const st = c.assinaturaStatus || 'pendente';
   const botaoAssinatura = st==='assinado'
     ? `<button class="btn ghost" style="margin-top:0; width:auto; flex:1;" onclick="window.open('${c.pdfAssinadoUrl || c.linkAssinatura || '#'}','_blank')">📝 Ver documento assinado</button>`
-    : `<button class="btn ghost" style="margin-top:0; width:auto; flex:1;" onclick="enviarParaAssinatura(${c.id}, this)">📤 ${st==='enviado' ? 'Reenviar para assinatura' : 'Enviar para assinatura'}</button>`;
+    : `<button class="btn ghost" style="margin-top:0; width:auto; flex:1;" onclick="enviarParaAssinatura(${c.id}, this)">📄 Criar documento no Autentique</button>`;
 
   return `<div style="white-space:normal;">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
@@ -1652,7 +1685,6 @@ function resumoContratoHTML(c){
 function assinaturaBadgeHTML(c){
   const st = c.assinaturaStatus || 'pendente';
   if(st==='assinado') return `<span class="money-pill paid">✓ Assinado</span>`;
-  if(st==='enviado') return `<span class="money-pill due">✉ Aguardando assinatura</span>`;
   return '';
 }
 
@@ -1663,7 +1695,7 @@ function assinaturaButtonNovoHTML(c){
     return `<div style="margin:0 0 10px;">${assinaturaBadgeHTML(c)}${c.assinadoEm ? `<span style="font-size:12px; color:var(--ink-soft); margin-left:6px;">em ${fmtData(c.assinadoEm.slice(0,10))}</span>` : ''}</div>
       <button class="btn ghost" onclick="window.open('${c.pdfAssinadoUrl || c.linkAssinatura || '#'}','_blank')">📝 Ver documento assinado</button>`;
   }
-  return `${st==='enviado' ? `<div style="margin:0 0 10px;">${assinaturaBadgeHTML(c)}</div>` : ''}<button class="btn ghost" onclick="enviarParaAssinatura(${c.id}, this)">📤 ${st==='enviado' ? 'Reenviar para assinatura' : 'Enviar para assinatura'}</button>`;
+  return `<button class="btn ghost" onclick="enviarParaAssinatura(${c.id}, this)">📄 Criar documento no Autentique</button>`;
 }
 
 function refreshContractViews(id){
@@ -1681,12 +1713,12 @@ async function enviarParaAssinatura(id, btnEl){
   const c = contracts.find(x=>x.id===id);
   if(!c) return;
   if(!c.tel || c.tel==='—'){
-    alert('Este contrato não tem telefone do cliente cadastrado. Edite o contrato e adicione o telefone antes de enviar para assinatura.');
+    alert('Este contrato não tem telefone do cliente cadastrado. Edite o contrato e adicione o telefone antes de criar o documento no Autentique.');
     return;
   }
 
   const origLabel = btnEl ? btnEl.innerHTML : null;
-  if(btnEl){ btnEl.disabled = true; btnEl.innerHTML = '⏳ Enviando...'; }
+  if(btnEl){ btnEl.disabled = true; btnEl.innerHTML = '⏳ Criando documento...'; }
 
   try{
     const { data: sessionData } = await sb.auth.getSession();
@@ -1859,6 +1891,7 @@ function setClientFilter(v){ clientFilter=v; renderClientes(); }
 function goTo(view){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+view));
+  try{ sessionStorage.setItem('katiafestas_currentView', view); }catch(e){}
 }
 document.getElementById('nav').addEventListener('click', e=>{
   const btn = e.target.closest('.nav-btn');
@@ -1971,6 +2004,12 @@ async function restaurarSessao(){
     esconderLogin();
     atualizarUsuarioTopbar();
     renderDashboard(); renderAgenda(); renderClientes();
+    let viewSalva = 'dashboard';
+    try{ viewSalva = sessionStorage.getItem('katiafestas_currentView') || 'dashboard'; }catch(e){}
+    if(['dashboard','novo','agenda','clientes'].includes(viewSalva)){
+      if(viewSalva==='novo'){ editingId=null; form=blankForm(); renderNovo(); }
+      goTo(viewSalva);
+    }
   } else {
     mostrarLogin();
   }
