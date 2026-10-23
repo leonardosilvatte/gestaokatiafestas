@@ -952,17 +952,6 @@ function renderNovo(){
     <div class="form-grid">
       <div class="panel">
         <div class="panel-head"><h2>Dados da festa</h2></div>
-        ${!isEdit ? `
-        <div style="margin:0 18px 16px; padding:12px 14px; border:1px dashed var(--border); border-radius:10px; background:var(--surface-2); display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:200px;">
-            <div style="font-size:13px; font-weight:700; color:var(--ink);">📷 Tem um contrato em papel?</div>
-            <div style="font-size:12px; color:var(--ink-soft); margin-top:2px;">Envie uma foto que a IA preenche os campos abaixo pra você conferir — nada é salvo automaticamente.</div>
-          </div>
-          <input type="file" accept="image/*" capture="environment" id="fotoContratoInput" style="display:none" onchange="importarContratoDeFoto(this)">
-          <button class="btn ghost" style="width:auto; margin:0;" onclick="document.getElementById('fotoContratoInput').click()" id="btnImportarFoto">Importar de uma foto</button>
-        </div>
-        <div id="importeFotoStatus" style="margin:-10px 18px 14px; font-size:12.5px; color:var(--ink-soft);"></div>
-        ` : ''}
         <div id="novoAlerts"></div>
         <div class="field-grid">
           <div class="field span2">
@@ -1114,87 +1103,6 @@ function removePagamentoNovo(idx){
   renderNovo();
 }
 
-function _redimensionarImagem(file, maxDim, quality){
-  return new Promise((resolve, reject)=>{
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = ()=>{
-      let { width, height } = img;
-      if(width > maxDim || height > maxDim){
-        if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
-        else { width = Math.round(width * maxDim / height); height = maxDim; }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = width; canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      canvas.toBlob(blob=>{
-        URL.revokeObjectURL(url);
-        if(blob) resolve(blob); else reject(new Error('Falha ao processar a imagem.'));
-      }, 'image/jpeg', quality);
-    };
-    img.onerror = ()=>{ URL.revokeObjectURL(url); reject(new Error('Não foi possível abrir a imagem.')); };
-    img.src = url;
-  });
-}
-
-async function importarContratoDeFoto(inputEl){
-  const file = inputEl.files && inputEl.files[0];
-  inputEl.value = '';
-  if(!file) return;
-
-  const statusEl = document.getElementById('importeFotoStatus');
-  const btnEl = document.getElementById('btnImportarFoto');
-  if(statusEl) statusEl.textContent = '⏳ Lendo o contrato na foto... isso pode levar alguns segundos.';
-  if(btnEl) btnEl.disabled = true;
-
-  try{
-    const { data: sessionData } = await sb.auth.getSession();
-    const token = sessionData && sessionData.session && sessionData.session.access_token;
-    if(!token) throw new Error('Sessão expirada. Saia e entre novamente.');
-
-    const blob = await _redimensionarImagem(file, 1600, 0.85);
-
-    const fd = new FormData();
-    fd.append('file', blob, 'contrato.jpg');
-
-    const resp = await fetch(`${SUPABASE_URL}/functions/v1/extrair-contrato-foto`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    });
-    const result = await resp.json();
-    if(!resp.ok){ throw new Error(result.error || 'Falha ao ler a imagem.'); }
-
-    const d = result.dados || {};
-    if(d.cliente) form.cliente = d.cliente;
-    if(d.cpf) form.cpf = d.cpf;
-    if(d.tel) form.tel = d.tel;
-    if(d.enderecoCliente) form.enderecoCliente = d.enderecoCliente;
-    if(d.aniversariante) form.aniversariante = d.aniversariante;
-    if(d.idade!=null && d.idade!=='') form.idade = d.idade;
-    if(d.tema) form.tema = d.tema;
-    if(d.data) form.data = d.data;
-    if(d.horaIni) form.horaIni = d.horaIni;
-    if(d.horaFim) form.horaFim = d.horaFim;
-    if(d.unidade==='vila' || d.unidade==='igapo') form.unidade = d.unidade;
-    if(d.conv!=null){
-      const steps = form.unidade==='igapo' ? IGAPO_CONV_STEPS : CONV_STEPS;
-      form.conv = steps.reduce((best,s)=> Math.abs(s-d.conv) < Math.abs(best-d.conv) ? s : best, steps[0]);
-    }
-    if(d.valorTotal!=null) form.valorTotal = d.valorTotal;
-    if(d.entrada!=null) form.entrada = d.entrada;
-    if(d.formaPagamento && ['pix','cartao_credito','dinheiro'].includes(d.formaPagamento)) form.formaPagamento = d.formaPagamento;
-    if(d.obs) form.obs = d.obs;
-
-    renderNovo();
-    document.getElementById('view-novo').insertAdjacentHTML('afterbegin', `<div class="alert ok" style="margin:0 0 16px;">✓ Dados lidos da foto — confira todos os campos com calma antes de salvar, e corrija o que precisar. Campos que não deu pra ler ficaram em branco.</div>`);
-  }catch(err){
-    console.error('Erro ao importar contrato de foto:', err);
-    alert('Não foi possível ler os dados da foto. ' + (err && err.message ? err.message : 'Tente novamente.'));
-    if(statusEl) statusEl.textContent = '';
-    if(btnEl) btnEl.disabled = false;
-  }
-}
 async function addPagamento(id){
   const c = contracts.find(x=>x.id===id);
   const dEl = document.getElementById('payDate'), vEl = document.getElementById('payValue');
