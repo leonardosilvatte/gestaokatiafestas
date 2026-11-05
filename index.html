@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kátia Festas Sistema</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
@@ -177,6 +182,25 @@
 
   ::selection{ background:color-mix(in srgb, var(--accent) 30%, transparent); }
 
+  /* ============ responsivo / mobile ============ */
+  @media (max-width:640px){
+    main{ padding:16px 14px 50px; }
+    .topbar{ padding:10px 14px; gap:10px 14px; }
+    .brand-text span{ display:none; }
+    nav{ gap:0; width:100%; }
+    .nav-btn{ padding:7px 9px; font-size:12.5px; }
+    .topbar-foot{ width:100%; margin-left:0; white-space:normal; }
+    .page-head h1{ font-size:21px; }
+    .stat-card .figure{ font-size:22px; }
+    .field-grid{ grid-template-columns:1fr; padding:14px; }
+    [style*="grid-template-columns:1fr 1fr"]{ grid-template-columns:1fr !important; }
+    .price-panel{ position:static; }
+    .row-item .who{ min-width:0; }
+    .modal{ max-width:94vw; }
+    .modal-back{ padding:10px; }
+    .login-card{ padding:24px 20px; }
+  }
+
   /* ============ tela de abertura (portal) ============ */
   .portal{
     position:fixed; inset:0; z-index:500;
@@ -231,6 +255,9 @@
   .login-pwrow{ position:relative; }
   .login-pwtoggle{ position:absolute; right:10px; top:31px; border:none; background:none; color:var(--ink-faint); font-size:12px; font-weight:700; cursor:pointer; padding:4px; }
 </style>
+</head>
+<body>
+
 
 <div id="portal" class="portal hidden" role="button" tabindex="0" aria-label="Entrar no sistema Kátia Festas">
   <div class="portal-inner">
@@ -2034,3 +2061,5 @@ renderClientes();
 portalOpened = true;
 restaurarSessao();
 </script>
+</body>
+</html>
